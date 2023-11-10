@@ -80,7 +80,7 @@ namespace Screenshoter
                 {
                     try
                     {
-                        Console.WriteLine($"[MANAGER] Browser free from {envelope.url}");
+                        Console.WriteLine($"[MANAGER] Queue size: {queue.Count}");
                         await browser.TakeScreenshot(envelope);
                     }
                     catch (Exception)

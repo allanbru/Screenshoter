@@ -56,7 +56,6 @@ namespace Screenshoter
                             {
                                 if (client != null)
                                 {
-                                    Console.WriteLine("new Client!");
                                     await HandleNewClient(client);
                                 }
                             }
