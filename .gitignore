@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/PhishingCrawler/PhishingCrawler.csproj
+/PhishingCrawler/Browser.cs
+/PhishingCrawler/BrowserManager.cs
+/PhishingCrawler/Domain.cs
+/PhishingCrawler/Program.cs
