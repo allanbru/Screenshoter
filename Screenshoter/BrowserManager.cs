@@ -71,7 +71,14 @@ namespace Screenshoter
         public static async Task CheckQueue()
         {
             await Task.Delay(100);
-            if (queue.Count <= 0) return;
+            if (queue.Count == 0)
+            {
+                if (Program.IsFinished())
+                {
+                    await Program.finishedExecution.Invoke();
+                }
+                return;
+            }
 
             if (freeBrowsers.TryDequeue(out var browser))
             {

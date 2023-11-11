@@ -12,6 +12,8 @@ namespace Screenshoter
         public static string OUTPUT_DIR = Program.OUTPUT_DIR;
         private ChromeDriver? browser;
 
+        private Mutex _mutex = new();
+
         private int debugPort = 9000;
         private int id = 0;
         public int GetId() => id;
@@ -30,21 +32,12 @@ namespace Screenshoter
             var chromeOptions = new ChromeOptions();
             chromeOptions.AddArguments("--headless");
             chromeOptions.AddArguments("--no-sandbox");
-            chromeOptions.AddArguments("--disable-setuid-sandbox");
-            chromeOptions.AddArguments("--remote-debugging-port=" + debugPort.ToString());
-            chromeOptions.AddArguments("--disable-dev-shm-using");
-            chromeOptions.AddArguments("--disable-extensions");
+            chromeOptions.AddArguments("--disable-dev-shm-usage");
             chromeOptions.AddArguments("--disable-gpu");
-            chromeOptions.AddArguments("--disable-infobars");
+            chromeOptions.AddArguments("--disable-extensions");
+            chromeOptions.AddArguments("--remote-debugging-port=" + debugPort.ToString());
             chromeOptions.AddArguments("--log-level=3");
-            chromeOptions.AddArguments("--disable-3d-apis");
-            chromeOptions.AddArguments("--silent");
-            var svc = ChromeDriverService.CreateDefaultService();
-            svc.SuppressInitialDiagnosticInformation = true;
-            svc.EnableAppendLog = true;
-            chromeOptions.SetLoggingPreference("Off", LogLevel.Off);
-            svc.LogPath = OUTPUT_DIR + "/chrome.log";
-            return new ChromeDriver(svc, chromeOptions);
+            return new ChromeDriver(chromeOptions);
         }
 
         public async Task TakeScreenshot(DomainEnvelope domain)
@@ -53,11 +46,16 @@ namespace Screenshoter
               
             try
             {
-                browser.Navigate().GoToUrl("http://" + domain.url); //url is a string variable
-                var path = $"{OUTPUT_DIR}/{DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss")} - {domain.url}.jpeg";
-                browser.GetScreenshot().SaveAsFile(path);
-                Console.WriteLine($"[BROWSER {id}] Success {domain.url}");
-                BrowserManager.FinishedScreenshot(this, domain, path);
+                if(_mutex.WaitOne(TimeSpan.Zero, true))
+                {
+                    browser.Navigate().GoToUrl("http://" + domain.url); //url is a string variable
+                    var path = $"{OUTPUT_DIR}/{DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss")} - {domain.url}.jpeg";
+                    browser.GetScreenshot().SaveAsFile(path);
+                    Console.WriteLine($"[BROWSER {id}] Success {domain.url}");
+                    BrowserManager.FinishedScreenshot(this, domain, path);
+
+                    _mutex.ReleaseMutex();
+                }                
             }
             catch(WebDriverException ex)
             {

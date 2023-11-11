@@ -1,6 +1,7 @@
 ﻿using OpenQA.Selenium.DevTools.V117.Page;
 using OpenQA.Selenium.DevTools.V117.Schema;
 using OpenQA.Selenium.Internal;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -15,9 +16,18 @@ namespace Screenshoter
         public static int PORT = 9018;
         public static string OUTPUT_DIR = Directory.CreateDirectory("output").FullName;
         public static int TIMEOUT_MS = 15000;
+
+        public delegate Task OnLastQueueEmpty();
+        public static OnLastQueueEmpty finishedExecution = SendLastMsg;
+
         private static TcpListener? _listener;
-        private static Dictionary<string, TcpClient> _clients = new();
-        static Queue<string[]> _outbound = new();
+
+        private static bool finished = false;
+        private static bool lastMessageSent = false;
+        public static bool IsFinished() => finished;
+
+
+        private static TcpClient? finishClient = null;
 
         public static async Task SendDomainToManager(object? domainEnvelope)
         {
@@ -34,11 +44,6 @@ namespace Screenshoter
             
         }
 
-        public static void AddToOutMsgQueue(string domain, string path)
-        {
-            return;
-        }
-
         private static async Task RunListener()
         {
             _listener = new TcpListener(IPAddress.Parse(IP), PORT);
@@ -48,7 +53,7 @@ namespace Screenshoter
             {
                 _listener.Start();
                 
-                while (true)
+                while (!lastMessageSent)
                 {
                     using (TcpClient client = await _listener.AcceptTcpClientAsync())
                     {
@@ -72,8 +77,8 @@ namespace Screenshoter
                 _listener.Stop();
             }
 
-            Console.WriteLine("\nHit enter to continue...");
-            Console.Read();
+            Console.WriteLine("\nFinished execution...\nThank you for using Screenshoter");
+            return;
         }
 
         private static async Task HandleNewClient(TcpClient client)
@@ -98,18 +103,34 @@ namespace Screenshoter
 
                     // Process the data sent by the client.
                     domain = domain.ToLower();
-                    //_clients.Add(domain, client);
-
-                    await SendDomainToManager(new DomainEnvelope(domain, client));
-                    
-                    //Thread nt = new(SendDomainToManager);
-                    //nt.Start(new DomainEnvelope(domain, client));
-                    //nt.Join(TIMEOUT_MS);
+                    if (domain != "finished")
+                    {
+                        await SendDomainToManager(new DomainEnvelope(domain, client));
+                    }
+                    else
+                    {
+                        Console.WriteLine("Received END MESSAGE from application");
+                        finished = true;
+                        finishClient = client;
+                        await BrowserManager.anyQueueChanged.Invoke();
+                    }
                 }
             }
             catch (IOException)
             {
                 // Ignore
+            }
+        }
+
+        private static async Task SendLastMsg()
+        {
+            if(finishClient != null)
+            {
+                NetworkStream stream = finishClient.GetStream();
+                string outMsg = $"Finished";
+                byte[] text = System.Text.Encoding.UTF8.GetBytes(outMsg);
+                await stream.WriteAsync(text);
+                lastMessageSent = true;
             }
         }
 
@@ -126,6 +147,7 @@ namespace Screenshoter
             }
 
             await RunListener();
+            return;
         }
     }
 }
